@@ -180,37 +180,62 @@ export const getClient = (userId: string) => {
   return clients[userId];
 };
 
+type FileData = { buffer: Buffer, name: string, mimeType: string };
+
+// Função principal para enviar a mensagem
 export const sendMessage = async (
   userId: string, 
   number: string, 
-  fileData?: { buffer: Buffer, name: string, mimeType: string }
-) => {
+  fileData?: FileData, 
+  timeout: number = 60000 // Timeout padrão de 60 segundos
+): Promise<void> => {
   const jid = `${number}@s.whatsapp.net`;
-  const clientData = getClient(userId);
+  const clientData = getClient(userId) as ClientData;
 
   if (!clientData || !clientData.sock) {
     throw new Error('Cliente não encontrado. Autentique-se primeiro.');
   }
 
-  await initializeWhatsAppAuth(userId)
+  await initializeWhatsAppAuth(userId);
 
   try {
     if (fileData) {
       console.log("Tamanho do buffer a ser enviado:", fileData.buffer.length); // Verificar tamanho antes do envio
-
-      await clientData.sock.sendMessage(jid, {
+      
+      // Enviar mensagem com controle de timeout
+      await sendMessageWithTimeout(clientData, jid, {
         document: fileData.buffer, 
         mimetype: fileData.mimeType, 
         fileName: fileData.name
-      });
+      }, timeout);
     } else {
-      await clientData.sock.sendMessage(jid, { text: 'Sua mensagem' });
+      await sendMessageWithTimeout(clientData, jid, { text: 'Sua mensagem' }, timeout);
     }
   } catch (error) {
     console.error('Erro ao enviar mensagem:', error);
     throw new Error('Erro ao enviar mensagem.');
   }
 };
+
+// Função auxiliar para implementar o timeout com tipagem adequada
+const sendMessageWithTimeout = async (
+  clientData: ClientData, 
+  jid: string, 
+  messageContent: any, 
+  timeout: number
+): Promise<void> => {
+  // Promise que envia a mensagem
+  const sendMessagePromise = clientData.sock.sendMessage(jid, messageContent);
+
+  // Promise que rejeita após o tempo limite
+  const timeoutPromise = new Promise<void>((_, reject) =>
+    setTimeout(() => reject(new Error('Tempo limite de envio excedido')), timeout)
+  );
+
+  // Retorna a primeira Promise que se resolve ou rejeita
+  return Promise.race([sendMessagePromise, timeoutPromise]);
+};
+
 
 export const getClientStatus = async (userId: string): Promise<string> => {
   const clientData = getClient(userId); // Função para pegar o cliente autenticado
