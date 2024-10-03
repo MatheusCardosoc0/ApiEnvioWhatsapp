@@ -1,0 +1,36 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "cockroachdb"
+  url      = env("DATABASE_URL")
+}
+
+model WhatsAppAuth {
+  userId      String   @id @unique
+  creds       Json
+  qrCode      String?
+  isConnected Boolean
+  lastMessage DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  Keys        Key[]
+}
+
+model Key {
+  id           Int          @id @default(sequence())
+  userId       String
+  type         String
+  keyId        String
+  value        Json
+  WhatsAppAuth WhatsAppAuth @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, type, keyId])
+}
